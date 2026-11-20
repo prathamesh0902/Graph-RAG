@@ -1,0 +1,13 @@
+Overview/data_store/
+ragenv/
+.env
+
+# Persistent stores (generated at runtime)
+Simple_RAG/rag_store/
+graph_store/
+eval_store/
+
+# Python
+*/__pycache__/
+*/chroma_db/
+*/chroma_db_test/
