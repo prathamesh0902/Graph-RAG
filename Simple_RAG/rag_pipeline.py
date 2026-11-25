@@ -14,11 +14,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# ─── Env-Driven Defaults ──────────────────────────────────────────────────────
 _DEFAULT_CHUNK_SIZE = int(os.getenv("RAG_CHUNK_SIZE", "500"))
 _DEFAULT_OVERLAP = int(os.getenv("RAG_OVERLAP", "80"))
 _DEFAULT_TOP_K = int(os.getenv("RAG_TOP_K", "20"))
 _DEFAULT_TOP_N = int(os.getenv("RAG_TOP_N", "5"))
 
+# ─── Data Structures ──────────────────────────────────────────────────────────
 
 @dataclass
 class SRTBlock:
@@ -40,6 +42,8 @@ class TextChunk:
     token_count: int = 0
     source_key: str = ""
 
+
+# ─── Phase 1: SRT Parser ──────────────────────────────────────────────────────
 
 def _read_text(file_path: str) -> str:
     path = Path(file_path)
@@ -90,6 +94,7 @@ def parse_srt(file_path: str) -> List[SRTBlock]:
                 blocks.append(SRTBlock(idx, tm.group(1).replace(",", "."), tm.group(2).replace(",", "."), text))
     return blocks
 
+# ─── Phase 2: Cleaning & Reconstruction ───────────────────────────────────────
 
 def clean_srt_blocks(blocks: List[SRTBlock]) -> List[SRTBlock]:
     noise_patterns = [r"\(Transcribed by.*?\)", r"\[music\]", r"♪.*?♪", r"<[^>]+>"]
@@ -136,6 +141,7 @@ def _token_counter():
     except Exception:
         return lambda text: len(text.split())
 
+# ─── Phase 3: Chunking ────────────────────────────────────────────────────────
 
 def chunk_segments(segments: list, chunk_size: int = 500, overlap: int = 80,
                    source_name: str = "podcast", source_key: str = "") -> List[TextChunk]:
@@ -211,6 +217,7 @@ def chunk_segments(segments: list, chunk_size: int = 500, overlap: int = 80,
         start_word = next_start
     return chunks
 
+# ─── Phase 4: Vector Store (ChromaDB) ─────────────────────────────────────────
 
 class VectorStore:
     def __init__(self, persist_dir: str, collection_name: str = "podcast_rag"):
@@ -288,6 +295,7 @@ class VectorStore:
             hits.append((doc, meta or {}, float(1.0 - distance)))
         return hits
 
+# ─── Phase 5: BM25 Sparse Retrieval ───────────────────────────────────────────
 
 class BM25Index:
     def __init__(self):
@@ -324,6 +332,7 @@ class BM25Index:
             }, float(scores[i])))
         return hits
 
+# ─── Phase 6: Hybrid Retrieval with RRF ───────────────────────────────────────
 
 def reciprocal_rank_fusion(dense_hits, sparse_hits, k: int = 60,
                            dense_weight: float = 0.6, sparse_weight: float = 0.4):
@@ -336,6 +345,7 @@ def reciprocal_rank_fusion(dense_hits, sparse_hits, k: int = 60,
             docs[key] = (text, meta)
     return [(docs[key][0], docs[key][1], scores[key]) for key in sorted(scores, key=scores.get, reverse=True)]
 
+# ─── Phase 7: Cross-Encoder Reranking ─────────────────────────────────────────
 
 class Reranker:
     def __init__(self, model_name: Optional[str] = None):
@@ -359,6 +369,7 @@ class Reranker:
             print(f"Reranker unavailable; using fused retrieval order: {exc}")
             return candidates[:top_n]
 
+# ─── Full Pipeline Orchestrator (Multi-Transcript) ────────────────────────────
 
 class PodcastRAG:
     def __init__(self, persist_dir: str = "./rag_store", chunk_size: int = _DEFAULT_CHUNK_SIZE,

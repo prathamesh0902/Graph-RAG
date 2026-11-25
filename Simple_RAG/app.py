@@ -13,7 +13,12 @@ import streamlit as st
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# ─── Page Config ──────────────────────────────────────────────────────────────
+
 st.set_page_config(page_title="Podcast RAG", page_icon="🎙️", layout="wide")
+
+# ─── CSS ──────────────────────────────────────────────────────────────────────
 
 st.markdown("""
 <style>
@@ -23,6 +28,8 @@ st.markdown("""
 .source-tag {display:inline-block;background:#667eea;color:white;border-radius:8px;padding:2px 8px;font-size:.75rem;margin:2px}
 </style>
 """, unsafe_allow_html=True)
+
+# ─── Session State Init ────────────────────────────────────────────────────────
 
 
 def init_state():
@@ -45,6 +52,8 @@ init_state()
 
 def current_api_key() -> str:
     return st.session_state.groq_api_key if st.session_state.provider == "groq" else st.session_state.openai_api_key
+
+# ─── LLM Call ─────────────────────────────────────────────────────────────────
 
 
 def call_llm(messages: list, context: str, provider: str, api_key: str, active_sources: list) -> str:
@@ -101,6 +110,8 @@ def get_rag(chunk_size: int, overlap: int, top_k: int, top_n: int):
     return st.session_state.rag
 
 
+# ─── Sidebar ──────────────────────────────────────────────────────────────────
+
 with st.sidebar:
     st.header("⚙️ Configuration")
     st.session_state.provider = st.selectbox(
@@ -131,7 +142,7 @@ with st.sidebar:
     st.subheader("📂 Upload transcripts")
     uploaded_files = st.file_uploader(
         "Upload .txt or .srt files", type=["txt", "srt"], accept_multiple_files=True,
-        help="Plain text and SubRip subtitle files are supported.",
+        help="Upload multiple transcripts and ask questions across all of them. Plain text and SubRip subtitle files are supported.",
     )
 
     if uploaded_files:
@@ -212,6 +223,8 @@ with st.sidebar:
         st.rerun()
 
 
+# ─── Main UI ───────────────────────────────────────────────────────────────────
+
 st.markdown('<div class="main-header">🎙️ Podcast RAG</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Multi-transcript chat · Dense + BM25 hybrid retrieval · Reciprocal Rank Fusion · Cross-encoder reranking</div>', unsafe_allow_html=True)
 
@@ -231,9 +244,26 @@ else:
                         st.markdown(
                             f"**{meta.get('source', '?')}** · {meta.get('start_time', 'N/A')} → {meta.get('end_time', 'N/A')} · score {score:.3f}\n\n{text}"
                         )
+    # ── Suggestion Buttons ────────────────────────────────────────────────────
     if not st.session_state.messages:
-        st.caption("Try: What are the main themes? What did the speaker say about AI? Summarize the discussion about BFF.")
-    user_input = st.chat_input("Ask a question about your transcripts…")
+        st.markdown("**💡 Try asking:**")
+        suggestions = [
+            "What are the main themes discussed across all episodes?",
+            "How do the guests' views on AI compare to each other?",
+            "What did the speakers say about self-driving / autonomous vehicles?",
+            "What are the key insights about the future of AI?",
+        ]
+        cols = st.columns(2)
+        for i, sug in enumerate(suggestions):
+            if cols[i % 2].button(sug, key=f"sug_{i}", use_container_width=True):
+                st.session_state["_prefill"] = sug
+                st.rerun()
+
+    # ── Chat Input (reads suggestion prefill if set) ───────────────────────────
+    user_input = st.chat_input("Ask anything across all transcripts...")
+    if not user_input and "_prefill" in st.session_state:
+        user_input = st.session_state.pop("_prefill")
+
     if user_input:
         api_key = current_api_key().strip()
         if not api_key:
