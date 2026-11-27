@@ -64,4 +64,5 @@ if __name__ == "__main__":
 
 
 # pip install chromadb
-# python store_and_print_chroma.py sample.txt ./chroma_db
+# python store_and_print_chroma.py sample_for_db_testing.txt ./chroma_db
+
